@@ -1,0 +1,39 @@
+/docs
+├── 00_overview.md
+│
+├── 01_architecture
+│   ├── architecture_constitution.md
+│   ├── architecture_risks.md
+│   ├── layers.md
+│   ├── domain_boundaries.md
+│   ├── command_model.md
+│   ├── event_sourcing.md
+│   ├── cqrs.md
+│   └── offline_model.md
+│
+├── 02_event_model
+│   ├── event_structure.md
+│   ├── event_naming_conventions.md
+│   ├── versioning.md
+│   ├── snapshots.md
+│   └── compensating_events.md
+│
+├── 03_conflicts
+│   ├── conflict_types.md
+│   ├── blocking_rules.md
+│   ├── override_mechanics.md
+│   └── audit_implications.md
+│
+├── 04_security_and_modes
+│   ├── system_mode.md
+│   ├── license_guard.md
+│   ├── rbac.md
+│   └── future_encryption.md
+│
+├── 05_saas_readiness
+│   ├── object_id.md
+│   ├── multi_tenant_future.md
+│   ├── limits.md
+│   └── cloud_sync.md
+│
+└── 99_non_negotiables.md

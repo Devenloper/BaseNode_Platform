@@ -1,0 +1,59 @@
+/backend
+├── interface
+│   ├── http
+│   │   ├── controllers
+│   │   ├── middleware
+│   │   └── routes
+│   └── cli
+│
+├── application
+│   ├── booking
+│   │   ├── commands
+│   │   ├── handlers
+│   │   ├── policies
+│   │   └── services
+│   │
+│   ├── finance
+│   ├── unit
+│   ├── hr
+│   │
+│   ├── shared
+│   │   ├── policies
+│   │   ├── guards
+│   │   └── services
+│   │
+│   └── dispatcher
+│
+├── domain
+│   ├── booking
+│   │   ├── aggregate
+│   │   ├── events
+│   │   └── value_objects
+│   ├── finance
+│   ├── hr
+│   ├── unit
+│   └── shared
+│
+├── infrastructure
+│   ├── event_store
+│   │   ├── append_store
+│   │   ├── snapshots
+│   │   └── serializers
+│   │
+│   ├── projections
+│   ├── repositories
+│   ├── integrations
+│   │   ├── pms
+│   │   ├── fiscal
+│   │   └── cloud
+│   │
+│   ├── persistence
+│   └── security        # crypto, jwt, token adapters (НЕ RBAC)
+│
+├── config
+│   ├── application.yaml
+│   ├── system.yaml
+│   └── object.yaml
+│
+└── bootstrap
+    └── wiring          # DI, composition only
