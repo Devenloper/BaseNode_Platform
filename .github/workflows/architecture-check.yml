@@ -1,0 +1,26 @@
+name: Architecture Boundary Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  architecture-check:
+    name: Enforce Core Frozen v1 boundaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run architecture boundary check
+        run: |
+          echo "Running architecture boundary enforcement..."
+          python scripts/check_architecture_boundaries.py $(git ls-files "*.py")
