@@ -18,8 +18,5 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Boundary import check
-        run: python scripts/check_architecture_imports.py $(git ls-files '*.py')
-
-      - name: Repository structure check
-        run: python scripts/check_repository_structure.py
+      - name: Architecture gate
+        run: python scripts/architecture-gate.py
