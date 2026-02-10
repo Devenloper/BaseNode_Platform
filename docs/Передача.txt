@@ -1,0 +1,13 @@
+domain/          # Только Domain logic
+application/     # Use-cases, orchestration
+infrastructure/  # DB, EventStore, Outbox, UoW
+interface/       # HTTP / API
+contracts/       # DTO / external contracts
+docs/
+  └─ adr/
+scripts/
+.github/
+
+ARCHITECTURE.md
+pyproject.toml
+README.md
