@@ -116,6 +116,7 @@ ALLOWED_ROOT_FILES = {
     "README.md",
     ".gitignore",
     ".pre-commit-config.yaml",
+    "ARCHITECTURE.md",   # ← ДОБАВИТЬ
 }
 
 
