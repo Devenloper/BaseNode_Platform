@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  architecture-boundary-check:
+  architecture-gate:
     runs-on: ubuntu-latest
 
     steps:
