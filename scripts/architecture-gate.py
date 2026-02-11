@@ -23,6 +23,8 @@ ALLOWED_ROOT_FILES = {
     "README.md",
     "pyproject.toml",
     "ARCHITECTURE.md",
+    "ARCHITECTURE_CONTEXT.md",
+    "PROJECT_STATE.md",   # ← добавить
 }
 
 
