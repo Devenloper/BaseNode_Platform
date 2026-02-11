@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Type, Dict, Callable, Any
 from uuid import UUID
 
-from domain.base_aggregate import BaseAggregate
+from domain.common.base_aggregate import BaseAggregate
 
 from .events import (
     StayCheckedIn,
@@ -19,7 +19,6 @@ from .events import (
 
 class StayDomainError(Exception):
     pass
-
 
 class StayAlreadyCheckedInError(StayDomainError):
     pass
