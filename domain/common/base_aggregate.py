@@ -1,63 +1,53 @@
-from typing import Any, Dict, List
-from uuid import UUID
-
-
-class DomainError(Exception):
-    """Base domain error for aggregate violations."""
-    pass
-
-
 class BaseAggregate:
-    """
-    Core Event-Sourced Aggregate base class.
 
-    Implements:
-    - version semantics
-    - handler dispatch table
-    - uncommitted events contract
-    - deterministic replay
-    """
+    def __init__(self, aggregate_id):
+        self.id = aggregate_id
+        self.version = 0
+        self._uncommitted_events = []
 
-    def __init__(self, aggregate_id: UUID):
-        self.id: UUID = aggregate_id
+    # ============================================================
+    # Internal event application
+    # ============================================================
 
-        # Event-sourcing internals
-        self._version: int = 0
-        self._uncommitted_events: List[Any] = []
+    def _apply(self, event):
+        """
+        Applies event to aggregate state.
+        Used both for new events and replay.
+        """
+        handler_name = f"_apply_{event.__class__.__name__}"
+        handler = getattr(self, handler_name, None)
 
-        # Must be defined by concrete aggregate
-        self._handlers: Dict[type, callable] = {}
-
-    # ========================================================
-    # Event Sourcing Core
-    # ========================================================
-
-    @property
-    def version(self) -> int:
-        return self._version
-
-    def apply(self, event: Any) -> None:
-        handler = self._handlers.get(type(event))
         if handler is None:
-            raise DomainError(f"No handler for event {type(event)}")
+            raise NotImplementedError(
+                f"{self.__class__.__name__} does not implement {handler_name}"
+            )
 
         handler(event)
-        self._version += 1
+        self.version += 1
 
-    def replay(self, events: List[Any]) -> None:
-        for event in events:
-            self.apply(event)
+    # ============================================================
+    # Uncommitted events
+    # ============================================================
 
-    def _record_event(self, event: Any) -> None:
-        self.apply(event)
+    def _add_uncommitted_event(self, event):
         self._uncommitted_events.append(event)
 
-    # ========================================================
-    # Uncommitted Events Contract
-    # ========================================================
-
-    def get_uncommitted_events(self) -> List[Any]:
+    def get_uncommitted_events(self):
         return list(self._uncommitted_events)
 
-    def clear_uncommitted_events(self) -> None:
+    def clear_uncommitted_events(self):
         self._uncommitted_events.clear()
+
+    # ============================================================
+    # Replay
+    # ============================================================
+
+    def replay(self, events):
+        """
+        Rebuild aggregate from history.
+        """
+        for event in events:
+            self._apply(event)
+
+        # replay does not produce new events
+        self.clear_uncommitted_events()

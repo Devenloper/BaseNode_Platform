@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from .models import EventRecord
-from infrastructure.exceptions import VersionConflictError
+from infrastructure.db.errors import VersionConflictError
 
 
 class EventStore:
@@ -21,13 +21,13 @@ class EventStore:
         return result.scalars().all()
 
     async def append(
-        self,
-        *,
-        aggregate_id,
-        aggregate_type,
-        events,
-        expected_version,
-        metadata,
+            self,
+            *,
+            aggregate_id,
+            aggregate_type,
+            events,
+            expected_version,
+            event_metadata: dict,
     ):
         current_version = await self._get_current_version(aggregate_id)
 
@@ -39,7 +39,6 @@ class EventStore:
             )
 
         next_version = current_version
-
         records = []
 
         for event in events:
@@ -50,12 +49,12 @@ class EventStore:
                 aggregate_type=aggregate_type,
                 aggregate_version=next_version,
                 event_type=event.__class__.__name__,
-                payload=event.__dict__,
-                metadata=metadata,
+                payload=event.to_dict(),        # ← важно
+                event_metadata=event_metadata,        # ← важно
             )
 
-            records.append(record)
             self._session.add(record)
+            records.append(record)
 
         try:
             await self._session.flush()
@@ -76,5 +75,5 @@ class EventStore:
             .limit(1)
         )
         result = await self._session.execute(stmt)
-        row = result.scalar()
+        row = result.scalar_one_or_none()
         return row or 0

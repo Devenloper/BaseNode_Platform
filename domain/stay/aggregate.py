@@ -1,93 +1,39 @@
-from datetime import datetime
-from typing import List, Type, Dict, Callable, Any
 from uuid import UUID
+from datetime import datetime
+from typing import List
 
 from domain.common.base_aggregate import BaseAggregate
-
 from .events import (
     StayCheckedIn,
     StayCheckedOut,
     StayRelocated,
-    StayConflictDetected,
 )
-
-
-# ============================================================
-# Exceptions
-# ============================================================
-
-
-class StayDomainError(Exception):
-    pass
-
-class StayAlreadyCheckedInError(StayDomainError):
-    pass
-
-
-class StayNotStartedError(StayDomainError):
-    pass
-
-
-class StayAlreadyCheckedOutError(StayDomainError):
-    pass
-
-
-class StayCompletedError(StayDomainError):
-    pass
-
-
-class InvalidStayPeriodError(StayDomainError):
-    pass
-
-
-class InvalidRelocationError(StayDomainError):
-    pass
-
-
-# ============================================================
-# Lifecycle (ADR-0006)
-# ============================================================
-
-
-class StayLifecycle:
-    NOT_STARTED = "NOT_STARTED"
-    IN_PROGRESS = "IN_PROGRESS"
-    COMPLETED = "COMPLETED"
-
-
-# ============================================================
-# Aggregate
-# ============================================================
 
 
 class Stay(BaseAggregate):
 
-    def __init__(self, stay_id: UUID):
-        self.id: UUID = stay_id
+    # ============================================================
+    # Constructor
+    # ============================================================
 
-        self.lifecycle: str = StayLifecycle.NOT_STARTED
-        self.room_id: UUID | None = None
+    def __init__(self, stay_id: UUID):
+        super().__init__(stay_id)
+
+        self.room_id: str | None = None
         self.started_at: datetime | None = None
         self.ended_at: datetime | None = None
-        self.conflict_detected: bool = False
+        self._is_active: bool = False
 
-        self._version: int = 0
-        self._uncommitted_events: List[Any] = []
+    # ============================================================
+    # Public domain operations
+    # ============================================================
 
-        self._handlers: Dict[Type, Callable] = {
-            StayCheckedIn: self._apply_checked_in,
-            StayCheckedOut: self._apply_checked_out,
-            StayRelocated: self._apply_relocated,
-            StayConflictDetected: self._apply_conflict_detected,
-        }
+    def check_in(self, *, room_id: str, started_at: datetime) -> None:
 
-    # ========================================================
-    # Public API (Commands)
-    # ========================================================
+        if self._is_active:
+            raise ValueError("Stay already active")
 
-    def check_in(self, room_id: UUID, started_at: datetime) -> None:
-        if self.lifecycle != StayLifecycle.NOT_STARTED:
-            raise StayAlreadyCheckedInError()
+        self._validate_datetime(started_at, "started_at")
 
         event = StayCheckedIn(
             stay_id=self.id,
@@ -95,37 +41,30 @@ class Stay(BaseAggregate):
             started_at=started_at,
         )
 
-        self._record_event(event)
+        self._apply(event)
+        self._add_uncommitted_event(event)
 
-    def check_out(self, ended_at: datetime) -> None:
-        if self.lifecycle == StayLifecycle.NOT_STARTED:
-            raise StayNotStartedError()
+    def check_out(self, *, ended_at: datetime) -> None:
 
-        if self.lifecycle == StayLifecycle.COMPLETED:
-            raise StayAlreadyCheckedOutError()
+        if not self._is_active:
+            raise ValueError("Cannot check out inactive stay")
 
-        if self.started_at is None:
-            raise StayDomainError("Invalid internal state")
-
-        if ended_at <= self.started_at:
-            raise InvalidStayPeriodError()
+        self._validate_datetime(ended_at, "ended_at")
 
         event = StayCheckedOut(
             stay_id=self.id,
             ended_at=ended_at,
         )
 
-        self._record_event(event)
+        self._apply(event)
+        self._add_uncommitted_event(event)
 
-    def relocate(self, new_room_id: UUID, relocated_at: datetime) -> None:
-        if self.lifecycle == StayLifecycle.NOT_STARTED:
-            raise StayNotStartedError()
+    def relocate(self, *, new_room_id: str, relocated_at: datetime) -> None:
 
-        if self.lifecycle == StayLifecycle.COMPLETED:
-            raise StayCompletedError()
+        if not self._is_active:
+            raise ValueError("Cannot relocate inactive stay")
 
-        if self.room_id == new_room_id:
-            raise InvalidRelocationError()
+        self._validate_datetime(relocated_at, "relocated_at")
 
         event = StayRelocated(
             stay_id=self.id,
@@ -133,59 +72,61 @@ class Stay(BaseAggregate):
             relocated_at=relocated_at,
         )
 
-        self._record_event(event)
+        self._apply(event)
+        self._add_uncommitted_event(event)
 
-    def detect_conflict(self, reason: str, detected_at: datetime) -> None:
-        event = StayConflictDetected(
-            stay_id=self.id,
-            reason=reason,
-            detected_at=detected_at,
-        )
+    # ============================================================
+    # Apply handlers (Event Sourcing)
+    # ============================================================
 
-        self._record_event(event)
-
-    # ========================================================
-    # Event Sourcing Core
-    # ========================================================
-
-    def apply(self, event: Any) -> None:
-        handler = self._handlers.get(type(event))
-        if handler is None:
-            raise StayDomainError(f"No handler for {type(event)}")
-
-        handler(event)
-
-        self._version += 1
-
-    def replay(self, events: List[Any]) -> None:
-        for event in events:
-            self.apply(event)
-
-    def _record_event(self, event: Any) -> None:
-        self.apply(event)
-        self._uncommitted_events.append(event)
-
-    def get_uncommitted_events(self) -> List[Any]:
-        return list(self._uncommitted_events)
-
-    def clear_uncommitted_events(self) -> None:
-        self._uncommitted_events.clear()
-
-    # ========================================================
-    # Apply Handlers
-    # ========================================================
-
-    def _apply_checked_in(self, event: StayCheckedIn) -> None:
-        self.lifecycle = StayLifecycle.IN_PROGRESS
+    def _apply_StayCheckedIn(self, event: StayCheckedIn) -> None:
         self.room_id = event.room_id
         self.started_at = event.started_at
+        self._is_active = True
 
-    def _apply_checked_out(self, event: StayCheckedOut) -> None:
-        self.lifecycle = StayLifecycle.COMPLETED
+    def _apply_StayCheckedOut(self, event: StayCheckedOut) -> None:
         self.ended_at = event.ended_at
+        self._is_active = False
 
-    def _apply_relocated(self, event: StayRelocated) -> None:
+    def _apply_StayRelocated(self, event: StayRelocated) -> None:
         self.room_id = event.new_room_id
 
-    def _apply_conflict_detected(self, event: StayConflictDetected) -> None:
-        self.conflict_detected = True
+    # ============================================================
+    # Replay support
+    # ============================================================
+
+    @classmethod
+    def event_from_record(cls, record):
+
+        payload = record.payload
+
+        if record.event_type == "StayCheckedIn":
+            return StayCheckedIn(
+                stay_id=UUID(payload["stay_id"]),
+                room_id=payload["room_id"],
+                started_at=datetime.fromisoformat(payload["started_at"]),
+            )
+
+        if record.event_type == "StayCheckedOut":
+            return StayCheckedOut(
+                stay_id=UUID(payload["stay_id"]),
+                ended_at=datetime.fromisoformat(payload["ended_at"]),
+            )
+
+        if record.event_type == "StayRelocated":
+            return StayRelocated(
+                stay_id=UUID(payload["stay_id"]),
+                new_room_id=payload["new_room_id"],
+                relocated_at=datetime.fromisoformat(payload["relocated_at"]),
+            )
+
+        raise ValueError(f"Unknown event type: {record.event_type}")
+
+    # ============================================================
+    # Internal validation
+    # ============================================================
+
+    @staticmethod
+    def _validate_datetime(value: datetime, field_name: str) -> None:
+        if value.tzinfo is None:
+            raise ValueError(f"{field_name} must be timezone-aware")

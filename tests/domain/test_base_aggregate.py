@@ -1,11 +1,11 @@
 import pytest
 from uuid import uuid4
 
-from domain.common.base_aggregate import BaseAggregate, DomainError
+from domain.common.base_aggregate import BaseAggregate
 
 
 # ============================================================
-# Test aggregate implementation
+# Dummy setup
 # ============================================================
 
 class DummyEvent:
@@ -17,62 +17,74 @@ class DummyAggregate(BaseAggregate):
     def __init__(self, aggregate_id):
         super().__init__(aggregate_id)
         self.applied = False
-        self._handlers = {
-            DummyEvent: self._apply_dummy
-        }
 
-    def _apply_dummy(self, event):
+    def _apply_DummyEvent(self, event):
         self.applied = True
 
 
 # ============================================================
-# Tests
+# Apply logic
 # ============================================================
 
-def test_replay_increments_version():
+def test_apply_increments_version_and_calls_handler():
     agg = DummyAggregate(uuid4())
 
-    events = [DummyEvent(), DummyEvent(), DummyEvent()]
+    event = DummyEvent()
+    agg._apply(event)
 
-    agg.replay(events)
+    assert agg.version == 1
+    assert agg.applied is True
 
-    assert agg.version == 3
 
-
-def test_handler_not_found_raises_domain_error():
+def test_apply_without_handler_raises():
     agg = DummyAggregate(uuid4())
 
     class UnknownEvent:
         pass
 
-    with pytest.raises(DomainError):
-        agg.apply(UnknownEvent())
+    with pytest.raises(NotImplementedError):
+        agg._apply(UnknownEvent())
 
 
-def test_clear_uncommitted_events():
+# ============================================================
+# Uncommitted lifecycle
+# ============================================================
+
+def test_add_and_clear_uncommitted_events():
     agg = DummyAggregate(uuid4())
 
-    agg._record_event(DummyEvent())
-    agg._record_event(DummyEvent())
+    event = DummyEvent()
 
-    assert len(agg.get_uncommitted_events()) == 2
+    agg._apply(event)
+    agg._add_uncommitted_event(event)
+
+    assert len(agg.get_uncommitted_events()) == 1
 
     agg.clear_uncommitted_events()
 
     assert agg.get_uncommitted_events() == []
 
 
-def test_version_increases_only_via_apply():
+# ============================================================
+# Replay
+# ============================================================
+
+def test_replay_increments_version_and_clears_uncommitted():
     agg = DummyAggregate(uuid4())
 
-    assert agg.version == 0
+    events = [DummyEvent(), DummyEvent()]
 
-    agg._record_event(DummyEvent())
-    assert agg.version == 1
+    agg.replay(events)
 
-    # прямое изменение запрещено — проверяем,
-    # что version меняется только через apply
-    previous_version = agg.version
-    agg._uncommitted_events.append(DummyEvent())
+    assert agg.version == 2
+    assert agg.get_uncommitted_events() == []
 
-    assert agg.version == previous_version
+
+def test_replay_without_handler_raises():
+    agg = DummyAggregate(uuid4())
+
+    class UnknownEvent:
+        pass
+
+    with pytest.raises(NotImplementedError):
+        agg.replay([UnknownEvent()])
