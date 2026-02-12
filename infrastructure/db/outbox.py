@@ -13,6 +13,6 @@ class OutboxStore:
                 aggregate_id=record.aggregate_id,
                 event_type=record.event_type,
                 payload=record.payload,
-                correlation_id=record.metadata.get("correlation_id"),
+                correlation_id=record.event_metadata.get("correlation_id"),
             )
             self._session.add(outbox)
