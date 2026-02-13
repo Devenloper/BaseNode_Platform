@@ -3,7 +3,7 @@ from uuid import uuid4
 from datetime import datetime, timezone
 
 from domain.stay.aggregate import Stay
-from infrastructure.db.errors import VersionConflictError
+from application.exceptions import VersionConflictError
 
 
 @pytest.mark.asyncio

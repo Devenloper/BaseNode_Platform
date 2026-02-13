@@ -16,7 +16,8 @@ ALLOWED_ROOT_DIRS = {
     "docs",
     "scripts",
     ".github",
-    "tests",  # ← ADR-0008
+    "tests",
+    "migrations",        # Alembic
 }
 
 ALLOWED_ROOT_FILES = {
@@ -24,7 +25,14 @@ ALLOWED_ROOT_FILES = {
     "pyproject.toml",
     "ARCHITECTURE.md",
     "ARCHITECTURE_CONTEXT.md",
-    "PROJECT_STATE.md",   # ← добавить
+    "PROJECT_STATE.md",
+    "docker-compose.yml",
+    "alembic.ini",
+    "requirements.txt",
+    "requirements-dev.txt",
+    ".gitignore",
+    ".pre-commit-config.yaml",
+    ".env",              # допустимо для dev
 }
 
 
@@ -44,12 +52,24 @@ def check_structure() -> List[str]:
         "venv",
     }
 
+    IGNORED_FILES_PREFIX = {
+        ".coverage",
+    }
+
     for item in root.iterdir():
 
         if item.name in IGNORED_DIRS:
             continue
 
-        if item.name.startswith(".") and item.name != ".github":
+        if any(item.name.startswith(p) for p in IGNORED_FILES_PREFIX):
+            continue
+
+        if item.name.startswith(".") and item.name not in {
+            ".github",
+            ".gitignore",
+            ".pre-commit-config.yaml",
+            ".env",
+        }:
             continue
 
         if item.is_dir():
@@ -58,8 +78,7 @@ def check_structure() -> List[str]:
 
         elif item.is_file():
             if item.name not in ALLOWED_ROOT_FILES:
-                if not item.name.startswith("."):
-                    violations.append(f"Unexpected root file: {item.name}")
+                violations.append(f"Unexpected root file: {item.name}")
 
     return violations
 
@@ -71,6 +90,7 @@ def check_structure() -> List[str]:
 FORBIDDEN_IMPORTS = {
     "domain": ["sqlalchemy", "fastapi"],
     "application": ["fastapi", "sqlalchemy"],
+    "infrastructure": ["fastapi"],  # infra не должен знать HTTP
 }
 
 
@@ -86,10 +106,13 @@ def check_boundaries() -> List[str]:
             content = file.read_text(encoding="utf-8")
 
             for forbidden_import in forbidden:
-                if f"import {forbidden_import}" in content or \
-                   f"from {forbidden_import}" in content:
+                if (
+                    f"import {forbidden_import}" in content
+                    or f"from {forbidden_import}" in content
+                ):
                     violations.append(
-                        f"[{layer.capitalize()}] {file}: forbidden import '{forbidden_import}'"
+                        f"[{layer.capitalize()}] {file}: "
+                        f"forbidden import '{forbidden_import}'"
                     )
 
     return violations
