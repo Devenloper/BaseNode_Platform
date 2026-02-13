@@ -1,27 +1,30 @@
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+# infrastructure/db/unit_of_work.py
+
 from infrastructure.db.repository import SqlAlchemyRepository
 
 
 class SqlAlchemyUnitOfWork:
+    """
+    UoW:
+    - Commit только в __aexit__
+    - Repository создаётся внутри контекста
+    """
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory):
         self._session_factory = session_factory
-        self._session: AsyncSession | None = None
-        self.repository: SqlAlchemyRepository | None = None
+        self._session = None
+        self.repository = None
 
     async def __aenter__(self):
         self._session = self._session_factory()
-
-        # ВАЖНО: repository создаётся здесь,
-        # чтобы использовать ту же session
         self.repository = SqlAlchemyRepository(self._session)
-
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        if exc:
-            await self._session.rollback()
-        else:
-            await self._session.commit()
-
-        await self._session.close()
+        try:
+            if exc:
+                await self._session.rollback()
+            else:
+                await self._session.commit()
+        finally:
+            await self._session.close()
