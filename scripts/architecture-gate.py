@@ -12,12 +12,13 @@ ALLOWED_ROOT_DIRS = {
     "application",
     "infrastructure",
     "interface",
+    "projection",   # ← ДОБАВИТЬ ЭТУ СТРОКУ
     "contracts",
     "docs",
     "scripts",
     ".github",
     "tests",
-    "migrations",        # Alembic
+    "migrations",
 }
 
 ALLOWED_ROOT_FILES = {

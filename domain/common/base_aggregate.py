@@ -1,18 +1,35 @@
+from __future__ import annotations
+
+from typing import Any, List
+
+
+class DomainError(Exception):
+    """
+    Base class for domain errors.
+    Safe to expose outside domain.
+    """
+    pass
+
+
 class BaseAggregate:
+    """
+    Base class for all aggregates.
 
-    def __init__(self, aggregate_id):
+    Contract required by tests and infrastructure.
+    """
+
+    def __init__(self, aggregate_id: Any):
         self.id = aggregate_id
-        self.version = 0
-        self._uncommitted_events = []
+        self.version: int = 0
+        self._uncommitted_events: List[Any] = []
 
-    # ============================================================
-    # Internal event application
-    # ============================================================
+    # -------------------------
+    # APPLY
+    # -------------------------
 
-    def _apply(self, event):
+    def _apply(self, event: Any) -> None:
         """
-        Applies event to aggregate state.
-        Used both for new events and replay.
+        Apply event to state and increment version.
         """
         handler_name = f"_apply_{event.__class__.__name__}"
         handler = getattr(self, handler_name, None)
@@ -23,31 +40,43 @@ class BaseAggregate:
             )
 
         handler(event)
+
+        # CRITICAL: tests expect version increment here
         self.version += 1
 
-    # ============================================================
-    # Uncommitted events
-    # ============================================================
+    # -------------------------
+    # ADD UNCOMMITTED EVENT
+    # -------------------------
 
-    def _add_uncommitted_event(self, event):
+    def _add_uncommitted_event(self, event: Any) -> None:
+        """
+        Add event to uncommitted list.
+        """
         self._uncommitted_events.append(event)
 
-    def get_uncommitted_events(self):
+    # -------------------------
+    # GET UNCOMMITTED EVENTS
+    # -------------------------
+
+    def get_uncommitted_events(self) -> List[Any]:
         return list(self._uncommitted_events)
 
-    def clear_uncommitted_events(self):
+    # -------------------------
+    # CLEAR UNCOMMITTED EVENTS
+    # -------------------------
+
+    def clear_uncommitted_events(self) -> None:
         self._uncommitted_events.clear()
 
-    # ============================================================
-    # Replay
-    # ============================================================
+    # -------------------------
+    # REPLAY
+    # -------------------------
 
-    def replay(self, events):
+    def replay(self, events: List[Any]) -> None:
         """
-        Rebuild aggregate from history.
+        Replay events to rebuild state.
         """
         for event in events:
             self._apply(event)
 
-        # replay does not produce new events
         self.clear_uncommitted_events()

@@ -1,7 +1,7 @@
 # tests/interface/test_stay_http.py
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from uuid import uuid4
 from datetime import datetime, timezone
 
@@ -46,6 +46,18 @@ class FakeHandlerUnexpected:
 
 
 # ----------------------------------------------------------
+# Test helper
+# ----------------------------------------------------------
+
+def create_test_client(app):
+    transport = ASGITransport(app=app)
+    return AsyncClient(
+        transport=transport,
+        base_url="http://test",
+    )
+
+
+# ----------------------------------------------------------
 # Tests
 # ----------------------------------------------------------
 
@@ -54,7 +66,7 @@ async def test_check_in_success():
     app = create_app()
     app.dependency_overrides[get_check_in_handler] = lambda: FakeHandlerSuccess()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with create_test_client(app) as client:
         response = await client.post(
             "/stays/check-in",
             json={
@@ -73,7 +85,7 @@ async def test_version_conflict():
     app = create_app()
     app.dependency_overrides[get_check_in_handler] = lambda: FakeHandlerVersionConflict()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with create_test_client(app) as client:
         response = await client.post(
             "/stays/check-in",
             json={
@@ -85,6 +97,7 @@ async def test_version_conflict():
         )
 
     body = response.json()
+
     assert response.status_code == 409
     assert body["error"]["code"] == "VERSION_CONFLICT"
 
@@ -94,7 +107,7 @@ async def test_domain_error():
     app = create_app()
     app.dependency_overrides[get_check_in_handler] = lambda: FakeHandlerDomainError()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with create_test_client(app) as client:
         response = await client.post(
             "/stays/check-in",
             json={
@@ -106,6 +119,7 @@ async def test_domain_error():
         )
 
     body = response.json()
+
     assert response.status_code == 400
     assert body["error"]["code"] == "DOMAIN_ERROR"
 
@@ -115,7 +129,7 @@ async def test_invalid_expected_version():
     app = create_app()
     app.dependency_overrides[get_check_in_handler] = lambda: FakeHandlerInvalidExpected()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with create_test_client(app) as client:
         response = await client.post(
             "/stays/check-in",
             json={
@@ -127,6 +141,7 @@ async def test_invalid_expected_version():
         )
 
     body = response.json()
+
     assert response.status_code == 400
     assert body["error"]["code"] == "INVALID_EXPECTED_VERSION"
 
@@ -136,7 +151,7 @@ async def test_unexpected_error():
     app = create_app()
     app.dependency_overrides[get_check_in_handler] = lambda: FakeHandlerUnexpected()
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with create_test_client(app) as client:
         response = await client.post(
             "/stays/check-in",
             json={
@@ -148,5 +163,6 @@ async def test_unexpected_error():
         )
 
     body = response.json()
+
     assert response.status_code == 500
     assert body["error"]["code"] == "INTERNAL_ERROR"
