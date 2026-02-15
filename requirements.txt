@@ -9,8 +9,6 @@ pydantic-settings==2.2.1
 # --- Database ---
 SQLAlchemy==2.0.46
 asyncpg==0.31.0
-
-# --- PostgreSQL sync driver (for Alembic) ---
 psycopg[binary]==3.3.2
 
 # --- Migrations ---

@@ -228,10 +228,96 @@ def test_event_from_record_all_types():
     assert event.new_room_id == "202"
 
 
-def test_event_from_record_unknown_type_raises():
-    class FakeRecord:
-        event_type = "UnknownEvent"
-        payload = {}
+def test_event_from_record_all_types():
+    stay_id = uuid4()
+    ts = now()
 
-    with pytest.raises(ValueError):
-        Stay.event_from_record(FakeRecord())
+    class FakeRecord:
+        def __init__(self, event_type, payload, aggregate_version=None):
+            self.event_type = event_type
+            self.payload = payload
+
+            # optional field (как в реальном EventRecord)
+            if aggregate_version is not None:
+                self.aggregate_version = aggregate_version
+
+    # ============================================================
+    # StayCheckedIn WITHOUT version (legacy / compatibility)
+    # ============================================================
+
+    record_in = FakeRecord(
+        "StayCheckedIn",
+        {
+            "stay_id": str(stay_id),
+            "room_id": "101",
+            "started_at": ts.isoformat(),
+        },
+    )
+
+    event = Stay.event_from_record(record_in)
+
+    assert isinstance(event, StayCheckedIn)
+    assert event.stay_id == stay_id
+    assert event.room_id == "101"
+    assert event.started_at == ts
+
+    # version не injected
+    assert getattr(event, "version", None) is None
+
+    # ============================================================
+    # StayCheckedIn WITH version (production case)
+    # ============================================================
+
+    record_in_v = FakeRecord(
+        "StayCheckedIn",
+        {
+            "stay_id": str(stay_id),
+            "room_id": "102",
+            "started_at": ts.isoformat(),
+        },
+        aggregate_version=5,
+    )
+
+    event = Stay.event_from_record(record_in_v)
+
+    assert isinstance(event, StayCheckedIn)
+    assert event.version == 5
+
+    # ============================================================
+    # StayCheckedOut
+    # ============================================================
+
+    record_out = FakeRecord(
+        "StayCheckedOut",
+        {
+            "stay_id": str(stay_id),
+            "ended_at": ts.isoformat(),
+        },
+        aggregate_version=6,
+    )
+
+    event = Stay.event_from_record(record_out)
+
+    assert isinstance(event, StayCheckedOut)
+    assert event.ended_at == ts
+    assert event.version == 6
+
+    # ============================================================
+    # StayRelocated
+    # ============================================================
+
+    record_reloc = FakeRecord(
+        "StayRelocated",
+        {
+            "stay_id": str(stay_id),
+            "new_room_id": "202",
+            "relocated_at": ts.isoformat(),
+        },
+        aggregate_version=7,
+    )
+
+    event = Stay.event_from_record(record_reloc)
+
+    assert isinstance(event, StayRelocated)
+    assert event.new_room_id == "202"
+    assert event.version == 7

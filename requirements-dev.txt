@@ -8,3 +8,6 @@ httpx==0.28.1
 
 # --- Lint / hooks ---
 pre-commit==4.5.1
+
+black==24.8.0
+ruff==0.6.9

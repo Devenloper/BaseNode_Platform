@@ -1,41 +1,48 @@
 # infrastructure/db/models.py
 
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+from uuid import UUID
+
 from sqlalchemy import (
     String,
+    Integer,
     DateTime,
-    func,
-    CheckConstraint,
-    UniqueConstraint,
-    Index,
+    JSON,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-import uuid
-from datetime import datetime
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    mapped_column,
+)
 
 
-# ---------------------------------------------------------
-# BASE
-# ---------------------------------------------------------
+# ============================================================
+# Base (ВАШ инфраструктурный Base)
+# ============================================================
 
 class Base(DeclarativeBase):
     pass
 
 
-# ---------------------------------------------------------
-# EVENT STORE (Append-only)
-# ---------------------------------------------------------
+# ============================================================
+# EVENT STORE TABLE
+# ============================================================
 
 class EventRecord(Base):
     __tablename__ = "event_store"
 
     id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
         autoincrement=True,
     )
 
-    aggregate_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    aggregate_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         nullable=False,
         index=True,
     )
@@ -46,6 +53,7 @@ class EventRecord(Base):
     )
 
     aggregate_version: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
@@ -54,62 +62,43 @@ class EventRecord(Base):
         nullable=False,
     )
 
-    payload: Mapped[dict] = mapped_column(
-        JSONB,
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
         nullable=False,
     )
 
-    event_metadata: Mapped[dict] = mapped_column(
-        JSONB,
+    # DB column name = metadata
+    # Python name = event_metadata (чтобы не конфликтовать с Base.metadata)
+    event_metadata: Mapped[dict[str, Any]] = mapped_column(
+        "metadata",
+        JSON,
         nullable=False,
+        default=dict,
     )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
         nullable=False,
-    )
-
-    __table_args__ = (
-        # 🔒 Optimistic locking invariant
-        UniqueConstraint(
-            "aggregate_id",
-            "aggregate_version",
-            name="uq_event_store_aggregate_version",
-        ),
-
-        # 🔎 Deterministic replay performance
-        Index(
-            "ix_event_store_aggregate_order",
-            "aggregate_id",
-            "aggregate_version",
-        ),
-
-        # 🛡 Extra safeguard
-        CheckConstraint(
-            "aggregate_version > 0",
-            name="ck_event_store_version_positive",
-        ),
+        default=lambda: datetime.now(timezone.utc),
     )
 
 
-# ---------------------------------------------------------
-# OUTBOX (Transactional Outbox Pattern)
-# ---------------------------------------------------------
+# ============================================================
+# OUTBOX TABLE
+# ============================================================
 
 class OutboxRecord(Base):
     __tablename__ = "outbox"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[int] = mapped_column(
+        Integer,
         primary_key=True,
-        default=uuid.uuid4,
+        autoincrement=True,
     )
 
-    aggregate_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    aggregate_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
         nullable=False,
-        index=True,
     )
 
     aggregate_type: Mapped[str] = mapped_column(
@@ -118,6 +107,7 @@ class OutboxRecord(Base):
     )
 
     aggregate_version: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
@@ -126,25 +116,21 @@ class OutboxRecord(Base):
         nullable=False,
     )
 
-    payload: Mapped[dict] = mapped_column(
-        JSONB,
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
         nullable=False,
     )
 
-    event_metadata: Mapped[dict] = mapped_column(
-        JSONB,
+    event_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSON,
         nullable=False,
-    )
-
-    correlation_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        nullable=True,
+        default=dict,
     )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
         nullable=False,
+        default=lambda: datetime.now(timezone.utc),
     )
 
     processed_at: Mapped[datetime | None] = mapped_column(
@@ -152,10 +138,44 @@ class OutboxRecord(Base):
         nullable=True,
     )
 
-    __table_args__ = (
-        # Быстрый выбор непросессенных сообщений
-        Index(
-            "ix_outbox_unprocessed",
-            "processed_at",
-        ),
+    # alias required by dispatcher/tests
+    @property
+    def published_at(self) -> datetime | None:
+        return self.processed_at
+
+    @published_at.setter
+    def published_at(self, value: datetime | None) -> None:
+        self.processed_at = value
+
+
+# ============================================================
+# PROJECTION TABLE
+# ============================================================
+
+class StayReadModel(Base):
+    __tablename__ = "stay_read_model"
+
+    stay_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        primary_key=True,
+    )
+
+    room_id: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    version: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
     )
